@@ -21,9 +21,13 @@ adrian-lopez-devops-practica/
 │   │   └── Services/              TiendaService (lógica de negocio)
 │   ├── consola/                   Cliente de consola con requests
 │   └── web/tienda.html            Panel web
+├── frontend/
+│   ├── Dockerfile                 Imagen nginx con el panel web
+│   └── nginx.conf                 Sirve el panel y reenvía /api/ a la API
 ├── tests/test_api.py              Tests de la API con pytest
 ├── scripts/prueba_contenedor.py   Prueba de la API ya arrancada (local o en Docker)
-├── Dockerfile
+├── Dockerfile                     Imagen de la API
+├── docker-compose.yml             Levanta la API y el frontend juntos
 ├── .dockerignore
 ├── requirements.txt               Dependencias de la API con versiones fijadas
 └── requirements-dev.txt           Dependencias para los tests
@@ -143,6 +147,29 @@ docker login ghcr.io -u adriaanlopz
 docker push ghcr.io/adriaanlopz/adrian-lopez-devops-practica:1.0.0
 ```
 
+## Docker Compose: API y frontend
+
+`docker-compose.yml` levanta dos contenedores que se comunican por la red interna que crea Compose:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose down
+```
+
+| Servicio | Imagen | Puerto | Qué es |
+|---|---|---|---|
+| `api` | `tienda-api:1.0.0` | 8000 | La API FastAPI (el `Dockerfile` de la raíz) |
+| `frontend` | `tienda-frontend:1.0.0` | 8080 | nginx con el panel web de la Práctica 2 |
+
+| Prueba | Resultado esperado |
+|---|---|
+| Abrir <http://localhost:8080> | Panel web con el campo API en `/api` y el estado «Conectado» |
+| `python scripts/prueba_contenedor.py http://localhost:8080/api` | Las 12 comprobaciones en `[OK]`, pasando por nginx |
+| Abrir <http://localhost:8000/docs> | Swagger de la API |
+
+Cómo se comunican: el navegador pide `http://localhost:8080/api/...` a nginx, y nginx lo reenvía a `http://api:8000/...`, donde `api` es el nombre del servicio en la red de Compose. nginx cambia al servir la página la dirección por defecto del panel (`http://127.0.0.1:8000`) por `/api`, así que `tienda.html` no se toca. El frontend espera a que el healthcheck de la API esté en `healthy` antes de arrancar.
+
 ## Tests
 
 ```bash
@@ -170,5 +197,6 @@ El workflow [`.github/workflows/docker.yml`](.github/workflows/docker.yml) se ej
 |---|---|
 | `main` | Rama principal, siempre estable. Solo recibe cambios por Pull Request |
 | `feature/docker` | Contenerización de la API (Práctica 3.2) |
+| `feature/frontend` | Contenedor del panel web y `docker-compose.yml` (extra de la Práctica 3.2) |
 
 Los commits siguen el formato `tipo(ámbito): descripción` (`feat`, `fix`, `docs`, `test`, `build`, `ci`, `chore`).
