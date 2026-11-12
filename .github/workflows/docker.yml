@@ -1,0 +1,79 @@
+name: CI Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  tests:
+    name: Tests de la API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Ejecutar pytest
+        run: pytest -v
+
+  docker:
+    name: Build, run, test y push
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Nombre y etiquetas de la imagen
+        run: |
+          echo "IMAGEN=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "VERSION=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "$IMAGEN:$VERSION" -t "$IMAGEN:latest" .
+          docker image ls "$IMAGEN"
+
+      - name: Run
+        run: docker run -d --name tienda -p 8000:8000 "$IMAGEN:latest"
+
+      - name: Test del contenedor
+        run: |
+          python3 scripts/prueba_contenedor.py http://localhost:8000
+          test "$(docker inspect -f '{{.Config.User}}' tienda)" = "tienda"
+          for i in $(seq 1 30); do
+            estado=$(docker inspect -f '{{.State.Health.Status}}' tienda)
+            [ "$estado" = "healthy" ] && break
+            sleep 1
+          done
+          echo "Healthcheck: $estado"
+          test "$estado" = "healthy"
+
+      - name: Logs del contenedor
+        if: always()
+        run: docker logs tienda
+
+      - name: Push a GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGEN:$VERSION"
+          docker push "$IMAGEN:latest"
