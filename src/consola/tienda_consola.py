@@ -1,9 +1,10 @@
 # Bibliotecas
+import os
 from typing import List, Optional
 import requests
 
 # Configuración
-URL_API = "http://127.0.0.1:8000"
+URL_API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 # Comunicación con la API
 def llamar(metodo: str, ruta: str, datos: Optional[dict] = None):
