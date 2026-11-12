@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -8,9 +10,11 @@ from schemas.Producto import ProductoCreate, ProductoRead
 from schemas.Usuario import UsuarioCreate, UsuarioRead
 from Services.Tienda_service import TiendaService
 
+ORIGENES_CORS = [origen.strip() for origen in os.getenv("CORS_ORIGINS", "*").split(",") if origen.strip()]
+
 app = FastAPI(title="Tienda online")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=ORIGENES_CORS, allow_methods=["*"], allow_headers=["*"])
 
 tienda = TiendaService()
 
@@ -22,6 +26,11 @@ def get_tienda():
 @app.get("/", include_in_schema=False)
 def inicio():
     return RedirectResponse("/docs")
+
+
+@app.get("/health", tags=["sistema"])
+def estado():
+    return {"status": "ok"}
 
 
 @app.post("/usuarios", response_model=UsuarioRead, status_code=201)
