@@ -71,6 +71,15 @@ jobs:
         if: always()
         run: docker logs tienda
 
+      - name: Compose (API + frontend)
+        run: |
+          docker rm -f tienda
+          docker compose up -d --build --wait
+          docker compose ps
+          python3 scripts/prueba_contenedor.py http://localhost:8080/api
+          curl -fsS http://localhost:8080/ | grep -q 'value="/api"'
+          docker compose down
+
       - name: Push a GitHub Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
